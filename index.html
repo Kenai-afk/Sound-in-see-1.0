@@ -93,9 +93,10 @@
     <!-- BOTON -->
 
     <button
-      id="btnStart"
-      class="btn btn-light btn-lg mt-4 px-5"
-    >
+    id="btnStart"
+    class="btn btn-light btn-lg mt-4 px-5"
+    onclick="this.blur()"
+>
 
       Activar Micrófono 
 
@@ -135,6 +136,15 @@
 <!-- TensorFlow.js/Futura IA -->
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands"></script> -->
+
+
+    <script>
+  document.addEventListener(
+    "touchstart",
+    () => {},
+    true
+  );
+</script>
 
 <!-- JAVASCRIPT -->
 
