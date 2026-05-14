@@ -22,31 +22,23 @@ const historial =
 // ======================================
 
 const esMovil =
-
   /Android|iPhone|iPad|iPod/i.test(
     navigator.userAgent
   );
 
 // ======================================
-// MODO ACTUAL
+// VARIABLES
 // ======================================
 
 let modoActual = "casa";
-
-// ======================================
-// CONTROL INTELIGENTE
-// ======================================
-
-let deteccionesConsecutivas = 1;
-
-let ultimoTipoDetectado = "";
-
 let ultimoHistorial = "";
-
 let ultimoEstado = "";
+let escuchando = false;
+let recognition = null;
+let bloqueandoHistorial = false;
 
 // ======================================
-// CAMBIAR MODOS
+// CAMBIO DE MODOS
 // ======================================
 
 modoSelector.addEventListener("change", () => {
@@ -62,7 +54,10 @@ modoSelector.addEventListener("change", () => {
 // NOTIFICACIONES
 // ======================================
 
-if ("Notification" in window) {
+if (
+  "Notification" in window &&
+  Notification.permission !== "granted"
+) {
 
   Notification.requestPermission();
 }
@@ -70,11 +65,8 @@ if ("Notification" in window) {
 function enviarNotificacion(texto) {
 
   if (
-
     "Notification" in window &&
-
     Notification.permission === "granted"
-
   ) {
 
     new Notification(
@@ -95,39 +87,44 @@ function vibracionEmergencia() {
   if (navigator.vibrate) {
 
     navigator.vibrate([
-      1000,
-      300,
-      1000
+      500,
+      200,
+      500
     ]);
   }
 }
 
 // ======================================
-// CAMBIAR INTERFAZ
+// INTERFAZ
 // ======================================
 
 function cambiarModoVisual(tipo) {
 
   document.body.className = "";
 
-  if (tipo === "voz") {
+  switch (tipo) {
 
-    document.body.classList.add("voz");
-  }
+    case "voz":
 
-  else if (tipo === "animal") {
+      document.body.classList.add("voz");
 
-    document.body.classList.add("animal");
-  }
+      break;
 
-  else if (tipo === "alerta") {
+    case "animal":
 
-    document.body.classList.add("alerta");
-  }
+      document.body.classList.add("animal");
 
-  else {
+      break;
 
-    document.body.classList.add("normal");
+    case "alerta":
+
+      document.body.classList.add("alerta");
+
+      break;
+
+    default:
+
+      document.body.classList.add("normal");
   }
 }
 
@@ -138,15 +135,15 @@ function cambiarModoVisual(tipo) {
 function agregarHistorial(texto) {
 
   if (
-
+    !historial ||
     texto === ultimoHistorial ||
-
-    !historial
-
+    bloqueandoHistorial
   ) {
 
     return;
   }
+
+  bloqueandoHistorial = true;
 
   ultimoHistorial = texto;
 
@@ -156,15 +153,19 @@ function agregarHistorial(texto) {
   historial.innerHTML += `
 
     <div class="historial-item">
-
       [${hora}] ${texto}
-
     </div>
 
   `;
 
   historial.scrollTop =
     historial.scrollHeight;
+
+  setTimeout(() => {
+
+    bloqueandoHistorial = false;
+
+  }, 2500);
 }
 
 // ======================================
@@ -195,11 +196,11 @@ function detectarCasa(
     cambiarModoVisual("alerta");
 
     actualizarEstado(
-      "🚨 Posible alarma / Bebé llorando"
+      "🚨 Posible alarma o emergencia"
     );
 
     agregarHistorial(
-      "🚨 Emergencia en casa"
+      "🚨 Emergencia detectada"
     );
 
     vibracionEmergencia();
@@ -208,40 +209,32 @@ function detectarCasa(
       "🚨 Emergencia detectada"
     );
 
-    return "alerta";
+    return;
   }
 
-  else if (
-
-    promedio > 40 &&
-
-    frecuenciasHumanas > 15
-
+  if (
+    promedio > 35 &&
+    frecuenciasHumanas > 10
   ) {
 
     cambiarModoVisual("voz");
 
     actualizarEstado(
-      "🗣️ Voz cercana detectada"
+      "🗣️ Voz detectada"
     );
 
     agregarHistorial(
       "🗣️ Voz detectada"
     );
 
-    return "voz";
+    return;
   }
 
-  else {
+  cambiarModoVisual("normal");
 
-    cambiarModoVisual("normal");
-
-    actualizarEstado(
-      "🏠 Escuchando entorno"
-    );
-
-    return "normal";
-  }
+  actualizarEstado(
+    "🏠 Escuchando entorno"
+  );
 }
 
 // ======================================
@@ -265,27 +258,29 @@ async function iniciarMicrofono() {
         }
       });
 
+    const AudioContextClass =
+      window.AudioContext ||
+      window.webkitAudioContext;
+
     const audioContext =
+      new AudioContextClass();
 
-      new (
+    if (audioContext.state === "suspended") {
 
-        window.AudioContext ||
-
-        window.webkitAudioContext
-
-      )();
-
-    await audioContext.resume();
+      await audioContext.resume();
+    }
 
     const source =
-      audioContext.createMediaStreamSource(stream);
+      audioContext.createMediaStreamSource(
+        stream
+      );
 
     const analyser =
       audioContext.createAnalyser();
 
-    source.connect(analyser);
+    analyser.fftSize = 256;
 
-    analyser.fftSize = 512;
+    source.connect(analyser);
 
     const dataArray =
       new Uint8Array(
@@ -294,32 +289,35 @@ async function iniciarMicrofono() {
 
     function analizarAudio() {
 
-      analyser.getByteFrequencyData(dataArray);
+      analyser.getByteFrequencyData(
+        dataArray
+      );
 
-      let promedio =
-        dataArray.reduce(
-          (a, b) => a + b
-        ) / dataArray.length;
+      let promedio = 0;
 
-      let tipoDetectado = "normal";
+      for (
+        let i = 0;
+        i < dataArray.length;
+        i++
+      ) {
+
+        promedio += dataArray[i];
+      }
+
+      promedio =
+        promedio / dataArray.length;
 
       let frecuenciasHumanas = 0;
 
-      for (let i = 20; i < 80; i++) {
-
-        if (dataArray[i] > 50) {
-
-          frecuenciasHumanas++;
-        }
-      }
-
-      let frecuenciasAgudas = 0;
-
-      for (let i = 120; i < 220; i++) {
+      for (
+        let i = 18;
+        i < 85;
+        i++
+      ) {
 
         if (dataArray[i] > 40) {
 
-          frecuenciasAgudas++;
+          frecuenciasHumanas++;
         }
       }
 
@@ -329,11 +327,10 @@ async function iniciarMicrofono() {
 
       if (modoActual === "casa") {
 
-        tipoDetectado =
-          detectarCasa(
-            promedio,
-            frecuenciasHumanas
-          );
+        detectarCasa(
+          promedio,
+          frecuenciasHumanas
+        );
       }
 
       // ===============================
@@ -342,44 +339,19 @@ async function iniciarMicrofono() {
 
       else if (modoActual === "calle") {
 
-        if (promedio > 85) {
-
-          tipoDetectado = "alerta";
+        if (promedio > 80) {
 
           cambiarModoVisual("alerta");
 
           actualizarEstado(
-            "🚗🚨 Claxon o sirena detectada"
-          );
-
-          agregarHistorial(
             "🚗🚨 Sirena o claxon"
           );
 
-          vibracionEmergencia();
-        }
-
-        else if (
-
-          promedio > 45 &&
-
-          frecuenciasAgudas > 20 &&
-
-          frecuenciasHumanas < 10
-
-        ) {
-
-          tipoDetectado = "animal";
-
-          cambiarModoVisual("animal");
-
-          actualizarEstado(
-            "🐾 Posible animal detectado"
-          );
-
           agregarHistorial(
-            "🐾 Animal detectado"
+            "🚗🚨 Sirena detectada"
           );
+
+          vibracionEmergencia();
         }
 
         else {
@@ -399,37 +371,19 @@ async function iniciarMicrofono() {
       else if (modoActual === "escuela") {
 
         if (
-
           promedio > 35 &&
-
           frecuenciasHumanas > 10
-
         ) {
-
-          tipoDetectado = "voz";
 
           cambiarModoVisual("voz");
 
           actualizarEstado(
             "🏫 Conversación detectada"
           );
-        }
-
-        else if (promedio > 90) {
-
-          tipoDetectado = "alerta";
-
-          cambiarModoVisual("alerta");
-
-          actualizarEstado(
-            "🚨 Alarma escolar detectada"
-          );
 
           agregarHistorial(
-            "🏫🚨 Alarma escolar"
+            "🏫 Conversación detectada"
           );
-
-          vibracionEmergencia();
         }
 
         else {
@@ -448,9 +402,7 @@ async function iniciarMicrofono() {
 
       else if (modoActual === "noche") {
 
-        if (promedio > 70) {
-
-          tipoDetectado = "alerta";
+        if (promedio > 65) {
 
           cambiarModoVisual("alerta");
 
@@ -475,28 +427,6 @@ async function iniciarMicrofono() {
         }
       }
 
-      // ===============================
-      // CONFIRMACION
-      // ===============================
-
-      if (
-
-        tipoDetectado ===
-        ultimoTipoDetectado
-
-      ) {
-
-        deteccionesConsecutivas++;
-      }
-
-      else {
-
-        deteccionesConsecutivas = 1;
-      }
-
-      ultimoTipoDetectado =
-        tipoDetectado;
-
       requestAnimationFrame(
         analizarAudio
       );
@@ -505,7 +435,7 @@ async function iniciarMicrofono() {
     analizarAudio();
   }
 
-  catch(error) {
+  catch (error) {
 
     console.log(error);
 
@@ -520,49 +450,50 @@ async function iniciarMicrofono() {
 // ======================================
 
 const SpeechRecognition =
-
   window.SpeechRecognition ||
-
   window.webkitSpeechRecognition;
-
-let recognition = null;
-
-let escuchando = false;
-
-let ultimoTextoDetectado = "";
-
-let reiniciando = false;
-
-// ======================================
-// COMPATIBILIDAD
-// ======================================
 
 if (SpeechRecognition) {
 
   recognition =
     new SpeechRecognition();
 
-  // Idioma automático
   recognition.lang =
     navigator.language || "es-MX";
 
-  // Mejor compatibilidad móvil
-  recognition.continuous = false;
-
-  recognition.interimResults = false;
-
   recognition.maxAlternatives = 1;
 
+  // ==================================
+  // CONFIG PC
+  // ==================================
+
+  if (!esMovil) {
+
+    recognition.continuous = true;
+
+    recognition.interimResults = true;
+  }
+
+  // ==================================
+  // CONFIG MOVIL
+  // ==================================
+
+  else {
+
+    recognition.continuous = false;
+
+    recognition.interimResults = false;
+  }
 }
 
 else {
 
   textoVoz.innerHTML =
-    "❌ Voz no compatible";
+    "❌ Reconocimiento de voz no compatible";
 }
 
 // ======================================
-// RESULTADOS
+// RESULTADOS VOZ
 // ======================================
 
 if (recognition) {
@@ -570,7 +501,7 @@ if (recognition) {
   recognition.onstart = () => {
 
     console.log(
-      "🎤 Escuchando..."
+      "🎤 Escuchando voz"
     );
   };
 
@@ -579,13 +510,9 @@ if (recognition) {
     let textoFinal = "";
 
     for (
-
       let i = event.resultIndex;
-
       i < event.results.length;
-
       i++
-
     ) {
 
       textoFinal +=
@@ -601,29 +528,10 @@ if (recognition) {
       return;
     }
 
-    // Evitar repetidos
-    if (
-      textoFinal ===
-      ultimoTextoDetectado
-    ) {
-
-      return;
-    }
-
-    ultimoTextoDetectado =
-      textoFinal;
-
-    // Mostrar texto
     textoVoz.innerHTML =
       `✏️ ${textoFinal}`;
 
-    // Visual
     cambiarModoVisual("voz");
-
-    // Historial limpio
-    agregarHistorial(
-      "🗣️ Voz detectada"
-    );
 
     console.log(
       "🎤 Texto:",
@@ -631,48 +539,37 @@ if (recognition) {
     );
   };
 
-  // ======================================
-  // FINALIZA
-  // ======================================
+  // ==================================
+  // REINICIO AUTOMATICO
+  // ==================================
 
   recognition.onend = () => {
 
-    console.log(
-      "🎤 Reconocimiento detenido"
-    );
+    if (!escuchando) {
 
-    // Reiniciar automáticamente
-    if (
-      escuchando &&
-      !reiniciando
-    ) {
-
-      reiniciando = true;
-
-      setTimeout(() => {
-
-        try {
-
-          recognition.start();
-
-        }
-
-        catch(error) {
-
-          console.log(
-            "Reinicio cancelado"
-          );
-        }
-
-        reiniciando = false;
-
-      }, 1500);
+      return;
     }
+
+    setTimeout(() => {
+
+      try {
+
+        recognition.start();
+      }
+
+      catch (error) {
+
+        console.log(
+          "Reinicio cancelado"
+        );
+      }
+
+    }, esMovil ? 1800 : 250);
   };
 
-  // ======================================
+  // ==================================
   // ERRORES
-  // ======================================
+  // ==================================
 
   recognition.onerror = (event) => {
 
@@ -681,13 +578,9 @@ if (recognition) {
       event.error
     );
 
-    // Ignorar errores comunes móviles
     if (
-
       event.error === "no-speech" ||
-
       event.error === "aborted"
-
     ) {
 
       return;
@@ -699,15 +592,6 @@ if (recognition) {
 
       alert(
         "🚫 Micrófono bloqueado"
-      );
-    }
-
-    if (
-      event.error === "audio-capture"
-    ) {
-
-      alert(
-        "🎤 No se encontró micrófono"
       );
     }
   };
@@ -726,24 +610,19 @@ function iniciarReconocimientoVoz() {
 
   escuchando = true;
 
-  console.log(
-    "🎤 Reconocimiento iniciado"
-  );
-
   setTimeout(() => {
 
     try {
 
       recognition.start();
-
     }
 
-    catch(error) {
+    catch (error) {
 
       console.log(error);
     }
 
-  }, 800);
+  }, esMovil ? 1200 : 100);
 }
 
 // ======================================
@@ -756,19 +635,22 @@ btnStart.addEventListener(
 
   async () => {
 
-    estado.innerHTML =
-      "🎤 Solicitando permisos...";
-
-    btnStart.style.display =
-      "none";
+    btnStart.disabled = true;
 
     actualizarEstado(
-      "🎧 Sistema iniciado"
+      "🎤 Solicitando permisos..."
     );
 
     await iniciarMicrofono();
 
     iniciarReconocimientoVoz();
+
+    actualizarEstado(
+      "🎧 Sistema iniciado"
+    );
+
+    btnStart.style.display =
+      "none";
   }
 );
 
@@ -784,14 +666,14 @@ if ("serviceWorker" in navigator) {
     .then(() => {
 
       console.log(
-        "Service Worker activo"
+        "✅ Service Worker activo"
       );
     })
 
     .catch((error) => {
 
       console.log(
-        "Error Service Worker:",
+        "❌ Error Service Worker:",
         error
       );
     });
