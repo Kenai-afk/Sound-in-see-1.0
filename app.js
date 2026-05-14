@@ -246,7 +246,7 @@ const audioContext =
 
 // Reanudar audio en celulares
 await audioContext.resume();
-  
+
 
   const source =
     audioContext.createMediaStreamSource(stream);
@@ -486,15 +486,25 @@ requestAnimationFrame(analizarAudio);
 
 // ======================================
 // VOZ A TEXTO
+
+// COMPATIBILIDAD VOZ
 // ======================================
 
-const recognition = new (
+const SpeechRecognition =
 
   window.SpeechRecognition ||
 
-  window.webkitSpeechRecognition
+  window.webkitSpeechRecognition;
 
-)();
+if (!SpeechRecognition) {
+
+  alert(
+    "Tu navegador no soporta reconocimiento de voz 😭"
+  );
+}
+
+const recognition =
+  new SpeechRecognition();
 
 recognition.lang = "es-MX";
 
@@ -535,14 +545,27 @@ recognition.onresult = (event) => {
 };
 
 // ======================================
-// SI SE APAGA SOLO
+// REINICIO AUTOMÁTICO
 // ======================================
 
 recognition.onend = () => {
 
   if (escuchando) {
 
-    recognition.start();
+    setTimeout(() => {
+
+      try {
+
+        recognition.start();
+
+      }
+
+      catch(error) {
+
+        console.log(error);
+      }
+
+    }, 500);
   }
 };
 
@@ -582,6 +605,10 @@ function iniciarReconocimientoVoz() {
 
   escuchando = true;
 
+  console.log(
+    "🎤 Reconocimiento iniciado"
+  );
+
   recognition.start();
 }
 
@@ -594,10 +621,10 @@ btnStart.addEventListener(
   "click",
 
   async () => {
-
-    estado.innerHTML =
-  "🎤 Solicitando permisos...";
     
+    estado.innerHTML =
+  "🎤 Solicitando permisos...";   
+
     btnStart.style.display = "none";
 
     actualizarEstado(
