@@ -506,7 +506,7 @@ if (!SpeechRecognition) {
 const recognition =
   new SpeechRecognition();
 
-recognition.lang = "es-MX";
+recognition.lang = "es-ES";
 
 recognition.continuous = true;
 
@@ -521,6 +521,10 @@ let escuchando = false;
 // ======================================
 
 recognition.onresult = (event) => {
+  console.log(
+  "🎤 Detectó voz",
+  event
+  );
 
   let textoFinal = "";
 
@@ -540,6 +544,8 @@ recognition.onresult = (event) => {
 
   textoVoz.innerHTML =
     `✏️ ${textoFinal}`;
+
+    alert(textoFinal);
 
   cambiarModoVisual("voz");
 };
