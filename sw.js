@@ -26,9 +26,7 @@ self.addEventListener("install", (event) => {
   );
   self.skipWaiting();
 });
-
 // ACTIVACION
-
 self.addEventListener("activate", (event) => {
   console.log(
     "🚀 Service Worker activado"
@@ -51,9 +49,7 @@ self.addEventListener("activate", (event) => {
   );
   self.clients.claim();
 });
-
 // FETCH
-
 self.addEventListener("fetch", (event) => {
   event.respondWith(
     caches.match(event.request)
