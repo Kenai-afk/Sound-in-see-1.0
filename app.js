@@ -533,28 +533,32 @@ let ultimoTextoDetectado = "";
 
 let reiniciando = false;
 
-// Compatibilidad
+// ======================================
+// COMPATIBILIDAD
+// ======================================
 
 if (SpeechRecognition) {
 
   recognition =
     new SpeechRecognition();
 
-  recognition.lang = navigator.language || "es-MX";
+  // Idioma automático
+  recognition.lang =
+    navigator.language || "es-MX";
+
+  // Mejor compatibilidad móvil
+  recognition.continuous = false;
+
+  recognition.interimResults = false;
 
   recognition.maxAlternatives = 1;
 
-  recognition.continuous =
-    !esMovil;
-
-  recognition.interimResults =
-    !esMovil;
 }
 
 else {
 
   textoVoz.innerHTML =
-    "❌ Tu navegador no soporta voz";
+    "❌ Voz no compatible";
 }
 
 // ======================================
@@ -562,6 +566,13 @@ else {
 // ======================================
 
 if (recognition) {
+
+  recognition.onstart = () => {
+
+    console.log(
+      "🎤 Escuchando..."
+    );
+  };
 
   recognition.onresult = (event) => {
 
@@ -591,7 +602,6 @@ if (recognition) {
     }
 
     // Evitar repetidos
-
     if (
       textoFinal ===
       ultimoTextoDetectado
@@ -603,14 +613,14 @@ if (recognition) {
     ultimoTextoDetectado =
       textoFinal;
 
-    // Mostrar texto detectado
+    // Mostrar texto
     textoVoz.innerHTML =
       `✏️ ${textoFinal}`;
 
-    // Cambiar interfaz
+    // Visual
     cambiarModoVisual("voz");
 
-    // SOLO registrar detección de voz
+    // Historial limpio
     agregarHistorial(
       "🗣️ Voz detectada"
     );
@@ -628,15 +638,13 @@ if (recognition) {
   recognition.onend = () => {
 
     console.log(
-      "🎤 Reconocimiento finalizado"
+      "🎤 Reconocimiento detenido"
     );
 
+    // Reiniciar automáticamente
     if (
-
       escuchando &&
-
       !reiniciando
-
     ) {
 
       reiniciando = true;
@@ -646,16 +654,19 @@ if (recognition) {
         try {
 
           recognition.start();
+
         }
 
         catch(error) {
 
-          console.log(error);
+          console.log(
+            "Reinicio cancelado"
+          );
         }
 
         reiniciando = false;
 
-      }, esMovil ? 1500 : 500);
+      }, 1500);
     }
   };
 
@@ -666,16 +677,28 @@ if (recognition) {
   recognition.onerror = (event) => {
 
     console.log(
-      "🚨 Error voz:",
+      "🚨 Error:",
       event.error
     );
+
+    // Ignorar errores comunes móviles
+    if (
+
+      event.error === "no-speech" ||
+
+      event.error === "aborted"
+
+    ) {
+
+      return;
+    }
 
     if (
       event.error === "not-allowed"
     ) {
 
       alert(
-        "🚫 Permiso de micrófono denegado"
+        "🚫 Micrófono bloqueado"
       );
     }
 
@@ -684,7 +707,7 @@ if (recognition) {
     ) {
 
       alert(
-        "🎤 No se detectó micrófono"
+        "🎤 No se encontró micrófono"
       );
     }
   };
@@ -707,15 +730,20 @@ function iniciarReconocimientoVoz() {
     "🎤 Reconocimiento iniciado"
   );
 
-  try {
+  setTimeout(() => {
 
-    recognition.start();
-  }
+    try {
 
-  catch(error) {
+      recognition.start();
 
-    console.log(error);
-  }
+    }
+
+    catch(error) {
+
+      console.log(error);
+    }
+
+  }, 800);
 }
 
 // ======================================
