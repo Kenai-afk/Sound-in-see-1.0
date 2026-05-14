@@ -236,8 +236,17 @@ async function iniciarMicrofono() {
     }
   });
 
-  const audioContext =
-    new AudioContext();
+const audioContext =
+
+  new (
+    window.AudioContext ||
+
+    window.webkitAudioContext
+  )();
+
+// Reanudar audio en celulares
+await audioContext.resume();
+  
 
   const source =
     audioContext.createMediaStreamSource(stream);
@@ -543,6 +552,11 @@ recognition.onend = () => {
 
 recognition.onerror = (event) => {
 
+  alert(
+  "Error reconocimiento: " +
+  event.error
+);
+
   console.log(
     "Error:",
     event.error
@@ -581,6 +595,9 @@ btnStart.addEventListener(
 
   async () => {
 
+    estado.innerHTML =
+  "🎤 Solicitando permisos...";
+    
     btnStart.style.display = "none";
 
     actualizarEstado(
